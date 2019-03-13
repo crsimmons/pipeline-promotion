@@ -1,0 +1,14 @@
+---
+platform: linux
+
+inputs:
+  - name: pipeline-promotion
+
+params:
+  FOUNDATION:
+  CONCOURSE_URL:
+  CONCOURSE_USERNAME:
+  CONCOURSE_PASSWORD:
+
+run:
+  path: pipeline-promotion/tasks/set-pipeline.sh
