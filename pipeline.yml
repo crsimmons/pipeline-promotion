@@ -5,48 +5,37 @@ resource_types:
     repository: mastertinner/build-metadata-resource
 
 resources:
-- name: bosh-deployment
-  check_every: 2m
-  type: git
-  source:
-    uri: https://github.com/cloudfoundry/bosh-deployment.git
-
-- name: cf-smoke-tests
-  check_every: 2m
-  type: git
-  source:
-    uri: https://github.com/cloudfoundry/cf-smoke-tests.git
-    branch: master
-
 - name: pipeline-promotion
-  check_every: 2m
   type: git
   source:
     uri: https://github.com/crsimmons/pipeline-promotion.git
 
 - name: cf-deployment
-  check_every: 2m
   type: github-release
   source:
     owner: cloudfoundry
     repository: cf-deployment
 
-# - name: prometheus-git
-#   check_every: 2m
-#   type: github-release
-#   source:
-#     owner: bosh-prometheus
-#     repository: prometheus-boshrelease
+- name: bosh-deployment
+  type: git
+  source:
+    uri: https://github.com/cloudfoundry/bosh-deployment.git
 
-# - name: prometheus-release
-#   type: bosh-io-release
-#   source:
-#     repository: cloudfoundry-community/prometheus-boshrelease
+- name: cf-smoke-tests
+  type: git
+  source:
+    uri: https://github.com/cloudfoundry/cf-smoke-tests.git
+    branch: master
 
-# - name: build-metadata
-#   type: build-metadata
+- name: build-metadata
+  type: build-metadata
 
-# - name: semver-bucket
+- name: pcf-ops-image
+  type: docker-image
+  source:
+    repository: engineerbetter/pcf-ops
+
+# - name: semver-trigger
 #   type: semver
 #   source:
 #     <<: &aws_creds_and_region
@@ -55,7 +44,7 @@ resources:
 #       secret_access_key: ((aws_secret_access_key))
 #     driver: s3
 #     bucket: ((meta-bucket))
-#     key: ((foundation))-version
+#     key: ((foundation))-trigger
 
 # - name: versions-passed-bucket
 #   type: s3
@@ -64,11 +53,6 @@ resources:
 #     bucket: ((meta-bucket))
 #     versioned_file: ((foundation))-versions.yml
 
-- name: pcf-ops-image
-  type: docker-image
-  source:
-    repository: engineerbetter/pcf-ops
-
 jobs:
 - name: terraform
   plan:
@@ -76,10 +60,10 @@ jobs:
     # - get: semver-bucket
     #   trigger: true
     - get: pipeline-promotion
-      version: ((resource_version_pipeline-promotion))
+      # version: ((resource_version_pipeline-promotion))
     - get: pcf-ops-image
       trigger: true
-      version: ((resource_version_pcf-ops-image))
+      # version: ((resource_version_pcf-ops-image))
   - task: terraform
     image: pcf-ops-image
     file: pipeline-promotion/tasks/terraform.yml
@@ -94,7 +78,7 @@ jobs:
     #   passed: [terraform]
     - get: bosh-deployment
       trigger: true
-      version: ((resource_version_bosh-deployment))
+      # version: ((resource_version_bosh-deployment))
     - get: pipeline-promotion
       passed: [terraform]
     - get: pcf-ops-image
@@ -102,7 +86,7 @@ jobs:
       passed: [terraform]
   - task: deploy-director
     image: pcf-ops-image
-    file: pipeline-promotion/tasks/deploy-director.yml
+    # file: pipeline-promotion/tasks/deploy-director.yml
     params:
       BOSH_DEPLOYMENT_VERSION: ((resource_version_bosh-deployment))
 
@@ -114,7 +98,7 @@ jobs:
     #   passed: [deploy-director]
     - get: cf-deployment
       trigger: true
-      version: ((resource_version_cf-deployment))
+      # version: ((resource_version_cf-deployment))
     - get: bosh-deployment
       trigger: true
       passed: [deploy-director]
@@ -137,7 +121,7 @@ jobs:
     #   passed: [deploy-cf]
     - get: cf-smoke-tests
       trigger: true
-      version: ((resource_version_cf-smoke-tests))
+      # version: ((resource_version_cf-smoke-tests))
     - get: cf-deployment
       trigger: true
       passed: [deploy-cf]
@@ -154,39 +138,6 @@ jobs:
     file: pipeline-promotion/tasks/smoke-test.yml
     params:
       SMOKE_TESTS_VERSION: ((resource_version_cf-smoke-tests))
-
-# - name: deploy-prometheus
-  # plan:
-  # - aggregate:
-  #   - get: semver-bucket
-  #     trigger: true
-  #     passed: [smoke-test]
-  #   - get: prometheus-git
-  #     trigger: true
-  #     version: ((resource_version_prometheus-git))
-  #   - get: prometheus-release
-  #     trigger: true
-  #     version: ((resource_version_prometheus-release))
-  #   - get: cf-smoke-tests
-  #     trigger: true
-  #     passed: [smoke-test]
-  #   - get: cf-deployment
-  #     trigger: true
-  #     passed: [smoke-test]
-  #   - get: bosh-deployment
-  #     trigger: true
-  #     passed: [smoke-test]
-  #   - get: pipeline-promotion
-  #     passed: [smoke-test]
-  #   - get: pcf-ops-image
-  #     trigger: true
-  #     passed: [smoke-test]
-  # - task: deploy-prometheus
-  #   image: pcf-ops-image
-  #   file: pipeline-promotion/tasks/deploy-prometheus.yml
-  #   params:
-  #     PROMETHEUS_GIT_VERSION: ((resource_version_prometheus-git))
-  #     PROMETHEUS_RELEASE_VERSION: ((resource_version_prometheus-release))
 
 # - name: promote-versions
 #   plan:

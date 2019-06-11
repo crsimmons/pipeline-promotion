@@ -1,7 +1,13 @@
-aws_access_key_id:
-aws_region:
-aws_secret_access_key:
-concourse_password:
-concourse_url:
-concourse_username:
-meta-bucket:
+# aws_access_key_id:
+# aws_region:
+# aws_secret_access_key:
+# concourse_password:
+# concourse_url:
+# concourse_username:
+# meta-bucket:
+
+
+resource_version_pipeline-promotion: placeholder
+resource_version_bosh-deployment: placeholder
+resource_version_cf-deployment: placeholder
+resource_version_cf-smoke-tests: placeholder

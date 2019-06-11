@@ -13,23 +13,23 @@ resources:
       region_name: ((aws_region))
       secret_access_key: ((aws_secret_access_key))
     bucket: ((meta-bucket))
-    versioned_file: latest-versions.yml
+    versioned_file: latest/versions.yml
 
 - name: preprod-input-versions
   type: s3
   source:
     <<: *aws_creds_and_region
     bucket: ((meta-bucket))
-    versioned_file: sandbox-versions.yml
+    versioned_file: sandbox/versions.yml
 
 - name: prod-input-versions
   type: s3
   source:
     <<: *aws_creds_and_region
     bucket: ((meta-bucket))
-    versioned_file: prepod-versions.yml
+    versioned_file: prepod/versions.yml
 
-- name: sandbox-version
+- name: sandbox-trigger
   type: semver
   source:
     <<: *aws_creds_and_region
@@ -37,7 +37,7 @@ resources:
     key: sandbox-version
     driver: s3
 
-- name: preprod-version
+- name: preprod-trigger
   type: semver
   source:
     <<: *aws_creds_and_region
@@ -45,7 +45,7 @@ resources:
     bucket: ((meta-bucket))
     key: preprod-version
 
-- name: prod-version
+- name: prod-trigger
   type: semver
   source:
     <<: *aws_creds_and_region
@@ -59,34 +59,34 @@ resources:
     repository: engineerbetter/pcf-ops
 
 jobs:
-- name: set-set-pipelines-pipeline
-  plan:
-  - aggregate:
-    - get: pipeline-promotion
-      trigger: true
-    - get: pcf-ops-image
-  - task: set-set-pipelines-pipeline
-    image: pcf-ops-image
-    file: pipeline-promotion/tasks/set-set-pipelines-pipeline.yml
-    params:
-      <<: &concourse_credentials
-        CONCOURSE_URL: ((concourse_url))
-        CONCOURSE_USERNAME: ((concourse_username))
-        CONCOURSE_PASSWORD: ((concourse_password))
+# - name: set-set-pipelines-pipeline
+#   plan:
+#   - aggregate:
+#     - get: pipeline-promotion
+#       trigger: true
+#     - get: pcf-ops-image
+#   - task: set-set-pipelines-pipeline
+#     image: pcf-ops-image
+#     file: pipeline-promotion/tasks/set-set-pipelines-pipeline.yml
+#     params:
+#       <<: &concourse_credentials
+#         CONCOURSE_URL: ((concourse_url))
+#         CONCOURSE_USERNAME: ((concourse_username))
+#         CONCOURSE_PASSWORD: ((concourse_password))
 
 - name: set-sandbox
   plan:
   - aggregate:
     - get: pipeline-promotion
-      passed:
-      - set-set-pipelines-pipeline
-      trigger: true
+      # passed:
+      # - set-set-pipelines-pipeline
+      # trigger: true
     - get: latest-versions
     - get: pcf-ops-image
   - task: set-sandbox
     image: pcf-ops-image
     file: pipeline-promotion/tasks/set-pipeline.yml
-    input_mapping: {versions: latest-versions}
+    input_mapping: {versions-file: latest-versions}
     params:
       <<: *concourse_credentials
       FOUNDATION: sandbox
@@ -104,7 +104,7 @@ jobs:
   - task: set-preprod
     image: pcf-ops-image
     file: pipeline-promotion/tasks/set-pipeline.yml
-    input_mapping: {versions: preprod-input-versions}
+    input_mapping: {versions-file: preprod-input-versions}
     params:
       <<: *concourse_credentials
       FOLLOWS_SPECIFIC_COMMIT: true
@@ -123,7 +123,7 @@ jobs:
   - task: set-prod
     image: pcf-ops-image
     file: pipeline-promotion/tasks/set-pipeline.yml
-    input_mapping: {versions: prod-input-versions}
+    input_mapping: {versions-file: prod-input-versions}
     params:
       <<: *concourse_credentials
       FOLLOWS_SPECIFIC_COMMIT: true
