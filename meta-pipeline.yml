@@ -1,6 +1,5 @@
 resources:
 - name: pipeline-promotion
-  check_every: 2m
   type: git
   source:
     uri: https://github.com/crsimmons/pipeline-promotion.git
