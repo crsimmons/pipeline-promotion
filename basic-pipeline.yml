@@ -1,0 +1,101 @@
+resource_types:
+- name: build-metadata
+  type: docker-image
+  source:
+    repository: mastertinner/build-metadata-resource
+
+resources:
+- name: pipeline-promotion
+  type: git
+  source:
+    uri: https://github.com/crsimmons/pipeline-promotion.git
+    username: ((github_username))
+    password: ((github_access_token))
+
+- name: cf-deployment
+  type: github-release
+  source:
+    owner: cloudfoundry
+    repository: cf-deployment
+    access_token: ((github_access_token))
+
+- name: bosh-deployment
+  type: git
+  source:
+    uri: https://github.com/cloudfoundry/bosh-deployment.git
+    username: ((github_username))
+    password: ((github_access_token))
+
+- name: cf-smoke-tests
+  type: git
+  source:
+    uri: https://github.com/cloudfoundry/cf-smoke-tests.git
+    username: ((github_username))
+    password: ((github_access_token))
+    branch: master
+
+- name: pcf-ops-image
+  type: docker-image
+  source:
+    repository: engineerbetter/pcf-ops
+
+jobs:
+- name: terraform
+  plan:
+  - in_parallel:
+    - get: pipeline-promotion
+      trigger: true
+    - get: pcf-ops-image
+  - task: terraform
+    image: pcf-ops-image
+    file: pipeline-promotion/tasks/terraform.yml
+    params:
+      PIPELINE_PROMOTION_VERSION: placeholder
+
+- name: deploy-director
+  plan:
+  - in_parallel:
+    - get: bosh-deployment
+      trigger: true
+    - get: pipeline-promotion
+      trigger: true
+      passed: [terraform]
+    - get: pcf-ops-image
+      passed: [terraform]
+  - task: deploy-director
+    image: pcf-ops-image
+    file: pipeline-promotion/tasks/deploy-director.yml
+    params:
+      BOSH_DEPLOYMENT_VERSION: placeholder
+
+- name: deploy-cf
+  plan:
+  - in_parallel:
+    - get: cf-deployment
+      trigger: true
+    - get: pipeline-promotion
+      trigger: true
+      passed: [deploy-director]
+    - get: pcf-ops-image
+      passed: [deploy-director]
+  - task: deploy-cf
+    image: pcf-ops-image
+    file: pipeline-promotion/tasks/deploy-cf.yml
+    params:
+      CF_DEPLOYMENT_VERSION: placeholder
+
+- name: smoke-test
+  plan:
+  - in_parallel:
+    - get: cf-smoke-tests
+      trigger: true
+    - get: pipeline-promotion
+      trigger: true
+      passed: [deploy-cf]
+    - get: pcf-ops-image
+      passed: [deploy-cf]
+  - task: smoke-test
+    image: pcf-ops-image
+    file: pipeline-promotion/tasks/smoke-test.yml
+    params:
+      SMOKE_TESTS_VERSION: placeholder

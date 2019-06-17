@@ -9,22 +9,29 @@ resources:
   type: git
   source:
     uri: https://github.com/crsimmons/pipeline-promotion.git
+    username: ((github_username))
+    password: ((github_access_token))
 
 - name: cf-deployment
   type: github-release
   source:
     owner: cloudfoundry
     repository: cf-deployment
+    access_token: ((github_access_token))
 
 - name: bosh-deployment
   type: git
   source:
     uri: https://github.com/cloudfoundry/bosh-deployment.git
+    username: ((github_username))
+    password: ((github_access_token))
 
 - name: cf-smoke-tests
   type: git
   source:
     uri: https://github.com/cloudfoundry/cf-smoke-tests.git
+    username: ((github_username))
+    password: ((github_access_token))
     branch: master
 
 - name: build-metadata
@@ -35,35 +42,36 @@ resources:
   source:
     repository: engineerbetter/pcf-ops
 
-# - name: semver-trigger
-#   type: semver
-#   source:
-#     <<: &aws_creds_and_region
-#       access_key_id: ((aws_access_key_id))
-#       region_name: ((aws_region))
-#       secret_access_key: ((aws_secret_access_key))
-#     driver: s3
-#     bucket: ((meta-bucket))
-#     key: ((foundation))-trigger
+- name: semver-trigger
+  type: semver
+  source:
+    <<: &aws_creds_and_region
+      access_key_id: ((aws_access_key_id))
+      region_name: ((aws_region))
+      secret_access_key: ((aws_secret_access_key))
+    driver: s3
+    bucket: ((meta-bucket))
+    key: ((foundation))-trigger
 
-# - name: versions-passed-bucket
-#   type: s3
-#   source:
-#     <<: *aws_creds_and_region
-#     bucket: ((meta-bucket))
-#     versioned_file: ((foundation))-versions.yml
+- name: versions-passed-bucket
+  type: s3
+  source:
+    <<: *aws_creds_and_region
+    bucket: ((meta-bucket))
+    versioned_file: ((foundation))-versions.yml
 
 jobs:
 - name: terraform
   plan:
-  - aggregate:
-    # - get: semver-bucket
-    #   trigger: true
+  - in_parallel:
+    - get: semver-bucket
+      trigger: true
     - get: pipeline-promotion
-      # version: ((resource_version_pipeline-promotion))
+      trigger: true
+      version: ((resource_version_pipeline-promotion))
     - get: pcf-ops-image
       trigger: true
-      # version: ((resource_version_pcf-ops-image))
+      version: ((resource_version_pcf-ops-image))
   - task: terraform
     image: pcf-ops-image
     file: pipeline-promotion/tasks/terraform.yml
@@ -72,37 +80,39 @@ jobs:
 
 - name: deploy-director
   plan:
-  - aggregate:
-    # - get: semver-bucket
-    #   trigger: true
-    #   passed: [terraform]
+  - in_parallel:
+    - get: semver-bucket
+      trigger: true
+      passed: [terraform]
     - get: bosh-deployment
       trigger: true
-      # version: ((resource_version_bosh-deployment))
+      version: ((resource_version_bosh-deployment))
     - get: pipeline-promotion
+      trigger: true
       passed: [terraform]
     - get: pcf-ops-image
       trigger: true
       passed: [terraform]
   - task: deploy-director
     image: pcf-ops-image
-    # file: pipeline-promotion/tasks/deploy-director.yml
+    file: pipeline-promotion/tasks/deploy-director.yml
     params:
       BOSH_DEPLOYMENT_VERSION: ((resource_version_bosh-deployment))
 
 - name: deploy-cf
   plan:
-  - aggregate:
-    # - get: semver-bucket
-    #   trigger: true
-    #   passed: [deploy-director]
+  - in_parallel:
+    - get: semver-bucket
+      trigger: true
+      passed: [deploy-director]
     - get: cf-deployment
       trigger: true
-      # version: ((resource_version_cf-deployment))
+      version: ((resource_version_cf-deployment))
     - get: bosh-deployment
       trigger: true
       passed: [deploy-director]
     - get: pipeline-promotion
+      trigger: true
       passed: [deploy-director]
     - get: pcf-ops-image
       trigger: true
@@ -115,13 +125,13 @@ jobs:
 
 - name: smoke-test
   plan:
-  - aggregate:
-    # - get: semver-bucket
-    #   trigger: true
-    #   passed: [deploy-cf]
+  - in_parallel:
+    - get: semver-bucket
+      trigger: true
+      passed: [deploy-cf]
     - get: cf-smoke-tests
       trigger: true
-      # version: ((resource_version_cf-smoke-tests))
+      version: ((resource_version_cf-smoke-tests))
     - get: cf-deployment
       trigger: true
       passed: [deploy-cf]
@@ -129,6 +139,7 @@ jobs:
       trigger: true
       passed: [deploy-cf]
     - get: pipeline-promotion
+      trigger: true
       passed: [deploy-cf]
     - get: pcf-ops-image
       trigger: true
@@ -139,41 +150,35 @@ jobs:
     params:
       SMOKE_TESTS_VERSION: ((resource_version_cf-smoke-tests))
 
-# - name: promote-versions
-#   plan:
-#   - aggregate:
-#     - get: semver-bucket
-#       trigger: true
-#       passed: [deploy-prometheus]
-#     - get: prometheus-git
-#       trigger: true
-#       passed: [deploy-prometheus]
-#     - get: prometheus-release
-#       trigger: true
-#       passed: [deploy-prometheus]
-#     - get: cf-smoke-tests
-#       trigger: true
-#       passed: [deploy-prometheus]
-#     - get: cf-deployment
-#       trigger: true
-#       passed: [deploy-prometheus]
-#     - get: bosh-deployment
-#       trigger: true
-#       passed: [deploy-prometheus]
-#     - get: pipeline-promotion
-#       passed: [deploy-prometheus]
-#     - get: pcf-ops-image
-#       trigger: true
-#       passed: [deploy-prometheus]
-#     - get: build-metadata
-#   - task: generate-versions
-#     image: pcf-ops-image
-#     file: pipeline-promotion/tasks/generate-versions.yml
-#     params:
-#       CONCOURSE_URL: ((concourse_url))
-#       CONCOURSE_USERNAME: ((concourse_username))
-#       CONCOURSE_PASSWORD: ((concourse_password))
-  # - put: versions-passed-bucket
-  #   params:
-  #     file: resource-versions/versions.yml
-  #     acl: private
+- name: promote-versions
+  plan:
+  - in_parallel:
+    - get: semver-bucket
+      trigger: true
+      passed: [smoke-test]
+    - get: cf-smoke-tests
+      trigger: true
+      passed: [smoke-test]
+    - get: cf-deployment
+      trigger: true
+      passed: [smoke-test]
+    - get: bosh-deployment
+      trigger: true
+      passed: [smoke-test]
+    - get: pipeline-promotion
+      passed: [smoke-test]
+    - get: pcf-ops-image
+      trigger: true
+      passed: [smoke-test]
+    - get: build-metadata
+  - task: generate-versions
+    image: pcf-ops-image
+    file: pipeline-promotion/tasks/generate-versions.yml
+    params:
+      CONCOURSE_URL: ((concourse_url))
+      CONCOURSE_USERNAME: ((concourse_username))
+      CONCOURSE_PASSWORD: ((concourse_password))
+  - put: versions-passed-bucket
+    params:
+      file: resource-versions/versions.yml
+      acl: private

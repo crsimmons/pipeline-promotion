@@ -6,8 +6,4 @@
 # concourse_username:
 # meta-bucket:
 
-
-resource_version_pipeline-promotion: placeholder
-resource_version_bosh-deployment: placeholder
-resource_version_cf-deployment: placeholder
-resource_version_cf-smoke-tests: placeholder
+github_username: engineerbetterci

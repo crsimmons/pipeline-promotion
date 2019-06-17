@@ -3,5 +3,3 @@ resource_version_cf-deployment: latest
 resource_version_cf-smoke-tests: latest
 resource_version_pcf-ops-image: latest
 resource_version_pipeline-promotion: latest
-resource_version_prometheus-git: latest
-resource_version_prometheus-release: latest
