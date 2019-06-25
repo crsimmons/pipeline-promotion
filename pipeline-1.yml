@@ -39,52 +39,26 @@ resources:
   source:
     repository: engineerbetter/pcf-ops
 
-- name: build-metadata
-  type: build-metadata
-
-- name: semver-trigger
-  type: semver
-  source:
-    <<: &aws_creds_and_region
-      access_key_id: ((aws_access_key_id))
-      region_name: ((aws_region))
-      secret_access_key: ((aws_secret_access_key))
-    driver: s3
-    bucket: ((meta-bucket))
-    key: ((foundation))-trigger
-
-- name: versions-passed-bucket
-  type: s3
-  source:
-    <<: *aws_creds_and_region
-    bucket: ((meta-bucket))
-    versioned_file: ((foundation))-versions.yml
-
 jobs:
 - name: terraform
   plan:
   - in_parallel:
-    - get: semver-bucket
-      trigger: true
     - get: pipeline-promotion
-      version: ((resource_version_pipeline-promotion))
+      trigger: true
     - get: pcf-ops-image
-      version: ((resource_version_pcf-ops-image))
   - task: terraform
     image: pcf-ops-image
     file: pipeline-promotion/tasks/terraform.yml
     params:
-      PIPELINE_PROMOTION_VERSION: ((resource_version_pipeline-promotion))
+      PIPELINE_PROMOTION_VERSION: placeholder
 
 - name: deploy-director
   plan:
   - in_parallel:
-    - get: semver-bucket
-      trigger: true
-      passed: [terraform]
     - get: bosh-deployment
-      version: ((resource_version_bosh-deployment))
+      trigger: true
     - get: pipeline-promotion
+      trigger: true
       passed: [terraform]
     - get: pcf-ops-image
       passed: [terraform]
@@ -92,75 +66,64 @@ jobs:
     image: pcf-ops-image
     file: pipeline-promotion/tasks/deploy-director.yml
     params:
-      BOSH_DEPLOYMENT_VERSION: ((resource_version_bosh-deployment))
+      BOSH_DEPLOYMENT_VERSION: placeholder
 
 - name: deploy-cf
   plan:
   - in_parallel:
-    - get: semver-bucket
-      trigger: true
-      passed: [deploy-director]
     - get: cf-deployment
-      version: ((resource_version_cf-deployment))
+      trigger: true
     - get: pipeline-promotion
+      trigger: true
       passed: [deploy-director]
     - get: pcf-ops-image
       passed: [deploy-director]
     - get: bosh-deployment
       passed: [deploy-director]
+      trigger: true
   - task: deploy-cf
     image: pcf-ops-image
     file: pipeline-promotion/tasks/deploy-cf.yml
     params:
-      CF_DEPLOYMENT_VERSION: ((resource_version_cf-deployment))
+      CF_DEPLOYMENT_VERSION: placeholder
 
 - name: smoke-test
   plan:
   - in_parallel:
-    - get: semver-bucket
+    - get: cf-smoke-tests
+      trigger: true
+    - get: pipeline-promotion
       trigger: true
       passed: [deploy-cf]
-    - get: cf-smoke-tests
-      version: ((resource_version_cf-smoke-tests))
     - get: pcf-ops-image
       passed: [deploy-cf]
     - get: bosh-deployment
       passed: [deploy-cf]
+      trigger: true
     - get: cf-deployment
       passed: [deploy-cf]
-    - get: pipeline-promotion
-      passed: [deploy-cf]
+      trigger: true
   - task: smoke-test
     image: pcf-ops-image
     file: pipeline-promotion/tasks/smoke-test.yml
     params:
-      SMOKE_TESTS_VERSION: ((resource_version_cf-smoke-tests))
+      SMOKE_TESTS_VERSION: placeholder
 
 - name: promote-versions
   plan:
   - in_parallel:
-    - get: semver-bucket
+    - get: cf-smoke-tests
       trigger: true
       passed: [smoke-test]
-    - get: cf-smoke-tests
-      passed: [smoke-test]
     - get: cf-deployment
+      trigger: true
       passed: [smoke-test]
     - get: bosh-deployment
+      trigger: true
       passed: [smoke-test]
     - get: pipeline-promotion
+      trigger: true
       passed: [smoke-test]
     - get: pcf-ops-image
+      trigger: true
       passed: [smoke-test]
-    - get: build-metadata
-  - task: generate-versions
-    image: pcf-ops-image
-    file: pipeline-promotion/tasks/generate-versions.yml
-    params:
-      CONCOURSE_URL: ((concourse_url))
-      CONCOURSE_USERNAME: ((concourse_username))
-      CONCOURSE_PASSWORD: ((concourse_password))
-  - put: versions-passed-bucket
-    params:
-      file: resource-versions/versions.yml
-      acl: private
