@@ -1,0 +1,82 @@
+resources:
+- name: pipeline-promotion
+  type: git
+  source:
+    uri: https://github.com/crsimmons/pipeline-promotion.git
+
+- name: preprod-input-versions
+  type: s3
+  source:
+    <<: &aws_creds_and_region
+      access_key_id: ((aws_access_key_id))
+      region_name: ((aws_region))
+      secret_access_key: ((aws_secret_access_key))
+    bucket: ((meta-bucket))
+    versioned_file: sandbox/versions.yml
+
+- name: prod-input-versions
+  type: s3
+  source:
+    <<: *aws_creds_and_region
+    bucket: ((meta-bucket))
+    versioned_file: prepod/versions.yml
+
+- name: preprod-trigger
+  type: semver
+  source:
+    <<: *aws_creds_and_region
+    driver: s3
+    bucket: ((meta-bucket))
+    key: preprod-version
+
+- name: prod-trigger
+  type: semver
+  source:
+    <<: *aws_creds_and_region
+    driver: s3
+    bucket: ((meta-bucket))
+    key: prod-version
+
+- name: pcf-ops-image
+  type: docker-image
+  source:
+    repository: engineerbetter/pcf-ops
+
+jobs:
+- name: set-preprod
+  plan:
+  - aggregate:
+    - get: pipeline-promotion
+    - get: preprod-input-versions
+      trigger: true
+    - get: pcf-ops-image
+  - task: set-preprod
+    image: pcf-ops-image
+    file: pipeline-promotion/tasks/set-pipeline.yml
+    input_mapping: {versions-file: preprod-input-versions}
+    params:
+      <<: *concourse_credentials
+      FOLLOWS_SPECIFIC_COMMIT: true
+      FOUNDATION: preprod
+  - put: preprod-version
+    params:
+      bump: patch
+
+- name: set-prod
+  plan:
+  - aggregate:
+    - get: pipeline-promotion
+    - get: prod-input-versions
+      trigger: true
+    - get: pcf-ops-image
+  - task: set-prod
+    image: pcf-ops-image
+    file: pipeline-promotion/tasks/set-pipeline.yml
+    input_mapping: {versions-file: prod-input-versions}
+    params:
+      <<: *concourse_credentials
+      FOLLOWS_SPECIFIC_COMMIT: true
+      FOUNDATION: prod
+  - put: prod-version
+    params:
+      bump: patch
