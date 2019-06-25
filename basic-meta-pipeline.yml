@@ -55,7 +55,10 @@ jobs:
     file: pipeline-promotion/tasks/set-pipeline.yml
     input_mapping: {versions-file: preprod-input-versions}
     params:
-      <<: *concourse_credentials
+      <<: &concourse_credentials
+        CONCOURSE_URL: ((concourse_url))
+        CONCOURSE_USERNAME: ((concourse_username))
+        CONCOURSE_PASSWORD: ((concourse_password))
       FOLLOWS_SPECIFIC_COMMIT: true
       FOUNDATION: preprod
   - put: preprod-version
