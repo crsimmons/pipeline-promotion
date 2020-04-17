@@ -1,8 +1,8 @@
 resource_types:
-- name: build-metadata
+- name: stopover
   type: docker-image
   source:
-    repository: mastertinner/build-metadata-resource
+    repository: engineerbetter/stopover-resource
 
 resources:
 - name: pipeline-promotion
@@ -39,8 +39,12 @@ resources:
   source:
     repository: engineerbetter/pcf-ops
 
-- name: build-metadata
-  type: build-metadata
+- name: stopover
+  type: stopover
+  source:
+    uri: ((concourse_url))
+    username: ((concourse_username))
+    password: ((concourse_password))
 
 jobs:
 - name: terraform
@@ -135,11 +139,14 @@ jobs:
     - get: pcf-ops-image
       trigger: true
       passed: [smoke-test]
-    - get: build-metadata
-  - task: generate-versions
+  - get: stopover
+  - task: display-versions
     image: pcf-ops-image
-    file: pipeline-promotion/tasks/generate-versions.yml
-    params:
-      CONCOURSE_URL: ((concourse_url))
-      CONCOURSE_USERNAME: ((concourse_username))
-      CONCOURSE_PASSWORD: ((concourse_password))
+    config:
+      platform: linux
+      inputs:
+      - name: stopover
+      run:
+        path: cat
+        args:
+        - stopover/versions.yml
