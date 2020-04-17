@@ -22,4 +22,9 @@ run:
 
     export ATC_BEARER_TOKEN=$(bosh int --path /targets/ci/token/value ~/.flyrc)
 
-    stopover.v2 ${CONCOURSE_URL} ${BUILD_TEAM_NAME} ${BUILD_PIPELINE_NAME} ${BUILD_JOB_NAME} ${BUILD_NAME} > resource-versions/versions.yml
+    PIPELINE_NAME=$(<build-metadata/build-pipeline-name)
+
+    team=$(cat build-metadata/build-team-name)
+    job=$(cat build-metadata/build-job-name)
+
+    stopover.v2 ${CONCOURSE_URL} $team ${PIPELINE_NAME} $job $(cat build-metadata/build-name) > resource-versions/versions.yml
