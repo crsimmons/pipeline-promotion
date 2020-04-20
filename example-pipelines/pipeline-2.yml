@@ -139,7 +139,7 @@ jobs:
     - get: pcf-ops-image
       trigger: true
       passed: [smoke-test]
-  - get: stopover
+  - put: stopover
   - task: display-versions
     image: pcf-ops-image
     config:
